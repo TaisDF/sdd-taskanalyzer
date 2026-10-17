@@ -87,7 +87,7 @@ def analyze_tasks(tarefas: list[dict[str, Any]]) -> dict[str, Any]:
     logger.debug("Iniciando análise de tarefas.")
     validadas = _validar_tarefas(tarefas)
     resultado = _montar_resultado(validadas)
-    logger.info(
+    logger.debug(
         "Análise concluída: %d tarefas processadas, %d concluídas.",
         resultado["total_tarefas"],
         resultado["total_concluidas"],
