@@ -2,7 +2,7 @@
 
 Regras de governança de contexto para agentes de IA. Este arquivo deve ser fornecido ao agente de IA, junto com `specs/task_analyzer_spec.md`, em **toda** interação de geração de código.
 
-> Origem: Seções 3 e 4 da Especificação SDD — TaskAnalyzer (Fase 1), alinhadas à versão 1.1 da especificação.
+> Origem: Seções 3 e 4 da Especificação SDD — TaskAnalyzer (Fase 1), alinhadas à versão 1.2 da especificação (Fase 3: CI/CD e Docker).
 
 ## 1. Diretrizes Arquiteturais (Obrigatórias)
 
@@ -17,7 +17,7 @@ Regras de governança de contexto para agentes de IA. Este arquivo deve ser forn
 
 ## 2. Proibições Explícitas (Regras Restritivas)
 
-- Não utilizar bibliotecas externas não autorizadas: o código em `src/` usa somente a biblioteca padrão do Python. O `pytest` é autorizado exclusivamente para os testes (listado em `requirements.txt`).
+- Não utilizar bibliotecas externas não autorizadas: o código em `src/` usa somente a biblioteca padrão do Python. O `pytest` é autorizado exclusivamente para os testes (listado em `requirements.txt`) e o `bandit` exclusivamente para a análise de segurança no pipeline de CI (instalado apenas no workflow, nunca em `src/`).
 - Não alterar, remover ou adaptar os cenários de teste definidos na Seção 2 de `specs/task_analyzer_spec.md`.
 - Não modificar a estrutura de pastas definida na Seção 4 deste arquivo.
 - Não persistir dados em arquivos ou bancos de dados nesta fase.
@@ -31,13 +31,20 @@ Regras de governança de contexto para agentes de IA. Este arquivo deve ser forn
 - Sempre fornecer o contexto completo (`specs/task_analyzer_spec.md` + `CONTEXT_RULES.md`) antes de solicitar geração de código.
 - Validar se a IA compreendeu o contrato de negócio antes de aceitar o código gerado.
 - Solicitar explicações quando houver dúvida sobre a solução proposta pela IA.
-- Revisar criticamente todo código gerado antes de aceitar (homologação humana — ver Seção 5).
+- Revisar criticamente todo código gerado antes de aceitar (homologação humana — ver Seção 6).
 - Rejeitar respostas que violem qualquer proibição listada na Seção 2.
 
 ## 4. Estrutura de Pastas do Repositório (fixa)
 
 ```
 sdd-taskanalyzer/
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # Pipeline de CI/CD (GitHub Actions)
+├── Dockerfile                # Empacotamento: imagem isolada do Test Harness
+├── docker-compose.yml        # Orquestração: suíte de testes com um único comando
+├── .dockerignore             # Arquivos excluídos da imagem Docker
+├── pytest.ini                # Configuração do pytest (raiz no sys.path)
 ├── README.md                 # Visão geral do projeto no GitHub
 ├── CONTEXT_RULES.md          # Regras persistentes para os agentes de IA
 ├── .gitignore                # Arquivos e pastas ignorados pelo Git
@@ -53,11 +60,20 @@ sdd-taskanalyzer/
 
 Qualquer necessidade de alteração deve ser justificada e registrada como nova versão da especificação.
 
-## 5. Plano de Homologação Humana
+## 5. Regras de Integração e Entrega Contínua (CI/CD)
+
+- Todo push e Pull Request nas branches `main` e `develop` dispara o pipeline `.github/workflows/ci.yml`.
+- Nenhum Pull Request pode ser integrado com o pipeline vermelho: um teste quebrado interrompe a esteira e bloqueia o merge (proteção de branch).
+- O pipeline executa o Test Harness sem alterações, valida o código em Python 3.11 (referência do enunciado) e 3.12 (mínimo destas regras) e executa a análise de segurança com Bandit.
+- A imagem Docker deve partir de uma imagem oficial e leve do Python (`python:3.12-slim`), executar como usuário sem privilégios de administrador e conter apenas o necessário para os testes (ver `.dockerignore`).
+- É proibido versionar segredos, tokens ou credenciais no repositório, no `Dockerfile` ou no workflow.
+- Alterações em `ci.yml`, `Dockerfile` ou `docker-compose.yml` seguem o mesmo fluxo de Pull Request e revisão humana do código-fonte.
+
+## 6. Plano de Homologação Humana
 
 Todo código gerado pela IA é submetido a revisão crítica humana antes de ser aceito e versionado:
 
-1. Execução completa dos testes automatizados (pytest) para validação funcional de todos os cenários.
+1. Execução completa dos testes automatizados (pytest), localmente e no pipeline de CI, para validação funcional de todos os cenários.
 2. Revisão de conformidade com o contrato de negócio (`specs/task_analyzer_spec.md`) e com estas regras de contexto.
 3. Análise de qualidade do código: legibilidade, tratamento de erros, aderência ao PEP 8 e aos padrões definidos.
 4. Testes manuais complementares em casos de borda não cobertos automaticamente.
