@@ -1,0 +1,11 @@
+# Itens que não devem entrar na imagem Docker
+.git/
+.github/
+venv/
+.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+*.pdf
+*.docx
