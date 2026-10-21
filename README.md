@@ -1,10 +1,11 @@
 # sdd-taskanalyzer
 
-![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-![Testes](https://img.shields.io/badge/pytest-16%20passed-brightgreen)
-![Fase](https://img.shields.io/badge/fase-2%20de%203-orange)
+[![CI - TaskAnalyzer](https://github.com/TaisDF/sdd-taskanalyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/TaisDF/sdd-taskanalyzer/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![Docker](https://img.shields.io/badge/docker-python%3A3.12--slim-2496ED)
+![Fase](https://img.shields.io/badge/fase-3%20de%203-brightgreen)
 
-Módulo Python de análise de tarefas e produtividade desenvolvido com **Spec-Driven Development (SDD)**: o código-fonte foi gerado por assistente de IA a partir de um contrato executável e homologado por revisão humana e testes automatizados.
+Módulo Python de análise de tarefas e produtividade desenvolvido com **Spec-Driven Development (SDD)**: o código-fonte foi gerado por assistente de IA a partir de um contrato executável, homologado por revisão humana e validado continuamente por um pipeline de CI/CD com testes automatizados, análise de segurança e containerização Docker.
 
 Projeto da disciplina **Bootcamp III — CEUB**.
 
@@ -19,25 +20,54 @@ O **TaskAnalyzer** recebe uma lista de tarefas e calcula indicadores objetivos d
 
 O contrato completo (entradas, saídas, validações e regras de negócio) está em [`specs/task_analyzer_spec.md`](specs/task_analyzer_spec.md), que é a **fonte da verdade** do projeto.
 
-## Status do build
+## Arquitetura de confiança
 
-| Item | Status |
+| Pilar | Artefato | Função |
+|---|---|---|
+| Motor CI/CD | `.github/workflows/ci.yml` | Executa testes, análise de segurança e build Docker a cada push e Pull Request |
+| Empacotamento | `Dockerfile` | Imagem isolada e reproduzível (`python:3.12-slim`, usuário sem privilégios) |
+| Orquestração | `docker-compose.yml` | Suíte de testes inteira com um único comando |
+| Governança | `CONTEXT_RULES.md` + `specs/` | Regras para a IA e contrato de negócio (SDD) |
+| Qualidade | `tests/` | Test Harness com os cenários de aceite |
+| Código | `src/task_analyzer.py` | Implementação gerada por IA e homologada |
+
+## Pipeline de CI/CD (GitHub Actions)
+
+Gatilhos: **push** e **Pull Request** nas branches `main` e `develop` (e execução manual).
+
+```
+push / pull request
+        │
+        ├──► testes (Python 3.11) ──┐
+        ├──► testes (Python 3.12) ──┼──► docker (build + testes no contêiner)
+        └──► segurança (Bandit) ────┘
+```
+
+| Job | O que faz |
 |---|---|
-| Testes automatizados | ✅ 16/16 aprovados (`python -m pytest -v`) |
-| Ambiente validado | Windows · PowerShell · Python 3.15.0 |
-| Homologação humana | ✅ Concluída (ver Pull Request da implementação) |
-| Integração contínua | ⏳ Prevista para a Fase 3 (GitHub Actions) |
+| **Test Harness** | Sobe um runner `ubuntu-latest`, instala as dependências do `requirements.txt` e executa `pytest tests/test_harness.py -v` em Python 3.11 e 3.12, em paralelo |
+| **Análise de segurança** | Executa o Bandit (análise estática de segurança) sobre `src/` |
+| **Docker** | Só roda se os anteriores passarem: constrói a imagem e executa a suíte dentro do contêiner, via `docker run` e `docker compose run` |
+
+Se qualquer teste falhar, a esteira é interrompida, o build fica vermelho e o Pull Request não pode ser integrado.
 
 ## Estrutura do repositório
 
 ```
 sdd-taskanalyzer/
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # Pipeline de CI/CD (GitHub Actions)
+├── Dockerfile                # Empacotamento da aplicação e dos testes
+├── docker-compose.yml        # Orquestração local
+├── .dockerignore             # Arquivos excluídos da imagem
+├── pytest.ini                # Configuração do pytest
 ├── README.md                 # Este arquivo
 ├── CONTEXT_RULES.md          # Regras de governança para agentes de IA
 ├── .gitignore                # Arquivos e pastas ignorados pelo Git
 ├── requirements.txt          # Dependências (pytest)
 ├── specs/
-│   └── task_analyzer_spec.md # Especificação SDD v1.1 (contrato)
+│   └── task_analyzer_spec.md # Especificação SDD (contrato)
 ├── tests/
 │   ├── conftest.py           # Fixtures compartilhadas
 │   └── test_harness.py       # Test Harness (cenários de aceite)
@@ -45,16 +75,32 @@ sdd-taskanalyzer/
     └── task_analyzer.py      # Código gerado por IA e homologado por humano
 ```
 
-## Requisitos
-
-- Python **3.12 ou superior**
-- `pytest >= 8.0` (apenas para os testes)
-
-O módulo `src/task_analyzer.py` usa **somente a biblioteca padrão** do Python.
-
 ## Como executar
 
-### Windows (PowerShell)
+### Opção 1: Docker (recomendado)
+
+Requer apenas o [Docker](https://docs.docker.com/get-docker/) instalado. Nenhuma instalação de Python é necessária.
+
+```bash
+git clone https://github.com/TaisDF/sdd-taskanalyzer.git
+cd sdd-taskanalyzer
+docker compose run --rm tests
+```
+
+Ou, construindo e executando a imagem manualmente:
+
+```bash
+docker build -t sdd-taskanalyzer .
+docker run --rm sdd-taskanalyzer
+```
+
+Resultado esperado: `16 passed`.
+
+### Opção 2: Python local
+
+Requer Python **3.11 ou superior** (o projeto adota 3.12+ como padrão).
+
+**Windows (PowerShell):**
 
 ```powershell
 git clone https://github.com/TaisDF/sdd-taskanalyzer.git
@@ -62,13 +108,13 @@ cd sdd-taskanalyzer
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m pytest -v
+pytest tests/test_harness.py -v
 ```
 
 > Se a ativação do ambiente for bloqueada, execute uma vez:
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
-### Linux / macOS
+**Linux / macOS:**
 
 ```bash
 git clone https://github.com/TaisDF/sdd-taskanalyzer.git
@@ -76,10 +122,8 @@ cd sdd-taskanalyzer
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
-python -m pytest -v
+pytest tests/test_harness.py -v
 ```
-
-Resultado esperado: `16 passed`.
 
 ## Exemplo de uso
 
@@ -109,27 +153,9 @@ tarefas = [
 ]
 
 resultado = analyze_tasks(tarefas)
-```
-
-Saída:
-
-```python
-{
-    "total_tarefas": 2,
-    "total_concluidas": 1,
-    "total_pendentes": 1,
-    "total_atrasadas": 1,
-    "tempo_medio_conclusao_horas": 30.0,
-    "taxa_atraso_percentual": 100.0,
-    "indicadores_por_prioridade": {
-        "baixa": {"quantidade_tarefas": 0, "quantidade_concluidas": 0,
-                  "tempo_medio_conclusao_horas": 0.0, "taxa_atraso_percentual": 0.0},
-        "media": {"quantidade_tarefas": 1, "quantidade_concluidas": 0,
-                  "tempo_medio_conclusao_horas": 0.0, "taxa_atraso_percentual": 0.0},
-        "alta":  {"quantidade_tarefas": 1, "quantidade_concluidas": 1,
-                  "tempo_medio_conclusao_horas": 30.0, "taxa_atraso_percentual": 100.0},
-    },
-}
+# resultado["total_tarefas"] == 2
+# resultado["tempo_medio_conclusao_horas"] == 30.0
+# resultado["taxa_atraso_percentual"] == 100.0
 ```
 
 Entradas inválidas (por exemplo, `data_conclusao` anterior a `data_criacao`) disparam `TaskValidationError`, com mensagem indicando o campo e o `id_tarefa`.
@@ -143,26 +169,25 @@ Entradas inválidas (por exemplo, `data_conclusao` anterior a `data_criacao`) di
 | 3 — Borda | Lista vazia e somente pendentes retornam `0.0` sem exceção | 2 |
 | 4 — Prioridade | Indicadores calculados de forma isolada por prioridade | 1 |
 
-## Metodologia: SDD com IA
+## Governança de IA (Critical-in-the-Loop)
 
-1. **Especificação** do contrato (Fase 1), versionada em `specs/`.
-2. **Regras de contexto** (`CONTEXT_RULES.md`) fornecidas à IA em toda interação.
-3. **Testes escritos antes do código**, sem serem enviados à IA.
-4. **Geração em dois prompts:** validação da compreensão do contrato e, depois, geração do código.
-5. **Homologação humana:** checklist de conformidade, registro de ocorrências e commits de correção separados.
+1. **Geração:** o agente de IA implementa a lógica a partir do contrato SDD e do `CONTEXT_RULES.md`.
+2. **Barreira SDD:** o código precisa respeitar o contrato executável e as regras de contexto (somente biblioteca padrão, assinatura fixa, sem regras inventadas).
+3. **Validação humana:** revisão crítica linha a linha, checklist de conformidade e correções em commits separados.
+4. **Integração segura:** o código só entra em `develop` e `main` por Pull Request com o pipeline verde.
 
 ## Fluxo de versionamento
 
-- `main`: versões entregues.
+- `main`: versões entregues (tags `v2.0-fase2`, `v3.0-fase3`).
 - `develop`: integração das funcionalidades.
-- `feature/*`: uma branch por entrega (`sdd-specification`, `test-harness`, `task-analyzer-impl`, `readme`).
-- Integração sempre via **Pull Request**, com commits semânticos (`feat:`, `fix:`, `test:`, `docs:`).
+- `feature/*`: uma branch por entrega.
+- Integração sempre via **Pull Request** com o pipeline de CI aprovado e commits semânticos (`feat:`, `fix:`, `test:`, `docs:`, `ci:`, `build:`).
 
 ## Roadmap
 
 - [x] **Fase 1:** especificação SDD, cenários de aceite e CONTEXT_RULES
-- [x] **Fase 2:** repositório, código gerado por IA, Test Harness e Pull Requests
-- [ ] **Fase 3:** CI/CD com GitHub Actions, Docker e relatório de governança
+- [x] **Fase 2:** código gerado por IA, Test Harness, versionamento e Pull Requests
+- [x] **Fase 3:** CI/CD com GitHub Actions, containerização Docker e governança ética de IA
 
 ## Autora
 
